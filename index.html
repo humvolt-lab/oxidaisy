@@ -1,0 +1,2232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MORPHSYNTH — ONE VOICE</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=VT323&family=Syne+Mono&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --panel: #111118;
+  --border: #252538;
+  --accent1: #e8ff00;   /* acid yellow — kick */
+  --accent2: #00ffcc;   /* cyan — bass */
+  --accent3: #ff3c6e;   /* pink — snare */
+  --dim: #505070;
+  --text: #c8c8e0;
+  --mono: 'Syne Mono', monospace;
+  --display: 'VT323', monospace;
+}
+
+html, body {
+  background: var(--bg);
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: var(--mono);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  /* Prevent iOS bounce */
+  position: fixed;
+  overscroll-behavior: none;
+}
+
+/* ── INIT SCREEN */
+#init {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg);
+  gap: 0;
+}
+
+.init-bg {
+  position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, rgba(232,255,0,0.025) 31px, rgba(232,255,0,0.025) 32px),
+    repeating-linear-gradient(90deg, transparent, transparent 31px, rgba(0,255,204,0.018) 31px, rgba(0,255,204,0.018) 32px);
+}
+
+.init-scanlines {
+  position: absolute; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0.18) 0px,
+    rgba(0,0,0,0.18) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+}
+
+.init-title {
+  position: relative; z-index: 2;
+  font-family: var(--display);
+  font-size: clamp(38px, 11vw, 110px);
+  letter-spacing: 4px;
+  line-height: 0.88;
+  text-align: center;
+  color: var(--accent1);
+  text-shadow:
+    0 0 40px rgba(232,255,0,0.6),
+    0 0 80px rgba(232,255,0,0.2),
+    4px 4px 0 rgba(255,60,110,0.5);
+}
+
+.init-sub {
+  position: relative; z-index: 2;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 6px;
+  color: var(--dim);
+  margin-top: 10px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.init-tagline {
+  position: relative; z-index: 2;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: rgba(255,60,110,0.55);
+  text-transform: uppercase;
+  margin-bottom: clamp(16px, 4vh, 40px);
+  text-align: center;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.init-diagram {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: clamp(14px, 3vh, 30px);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.diag-block {
+  padding: 6px 12px;
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 3px;
+  border: 1px solid;
+  line-height: 1;
+}
+.diag-kick { color: var(--accent1); border-color: var(--accent1); text-shadow: 0 0 10px var(--accent1); }
+.diag-bass { color: var(--accent2); border-color: var(--accent2); text-shadow: 0 0 10px var(--accent2); }
+.diag-snare { color: var(--accent3); border-color: var(--accent3); text-shadow: 0 0 10px var(--accent3); }
+.diag-arrow { color: var(--dim); font-size: 16px; }
+
+#init-btn {
+  position: relative; z-index: 2;
+  background: transparent;
+  border: 1px solid var(--accent1);
+  color: var(--accent1);
+  font-family: var(--display);
+  font-size: 28px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 14px 48px;
+  text-align: center;
+  transition: all 0.12s;
+  text-shadow: 0 0 20px rgba(232,255,0,0.6);
+  box-shadow: 0 0 20px rgba(232,255,0,0.1), inset 0 0 20px rgba(232,255,0,0.04);
+}
+#init-btn:hover {
+  background: rgba(232,255,0,0.08);
+  box-shadow: 0 0 40px rgba(232,255,0,0.3), inset 0 0 20px rgba(232,255,0,0.08);
+}
+#init-btn:active { transform: translate(1px,1px); }
+
+/* ── MAIN UI */
+#main {
+  position: fixed; inset: 0;
+  /* Safe area for iPhone notch + home bar */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  display: none;
+  flex-direction: column;
+  height: 100%;
+  height: 100dvh;
+}
+
+/* ── OSCILLOSCOPE — flexes to fill remaining space */
+#scope-wrap {
+  flex: 1 1 0;          /* grows to fill whatever is left after fixed sections */
+  min-height: 80px;     /* never collapse entirely */
+  position: relative;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  background: #06060c;
+}
+
+#scope {
+  width: 100%; height: 100%;
+  image-rendering: pixelated;
+}
+
+.scope-label {
+  position: absolute;
+  top: 10px; left: 14px;
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 5px;
+  color: rgba(232,255,0,0.35);
+  text-transform: uppercase;
+}
+
+/* Current state indicator */
+#state-pill {
+  position: absolute;
+  top: 10px; right: 14px;
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 4px;
+  padding: 2px 12px;
+  border: 1px solid;
+  line-height: 1.2;
+  transition: color 0.06s, border-color 0.06s, text-shadow 0.06s;
+}
+
+/* ── PARAMETER DISPLAY — middle band */
+#params-wrap {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.param-cell {
+  background: var(--panel);
+  padding: 6px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.param-label {
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.param-value {
+  font-family: var(--display);
+  font-size: clamp(14px, 4vw, 20px);
+  letter-spacing: 2px;
+  color: var(--text);
+  transition: color 0.05s;
+}
+.param-bar {
+  height: 2px;
+  background: var(--dim);
+  position: relative;
+}
+.param-bar-fill {
+  position: absolute;
+  top: 0; left: 0; height: 100%;
+  transition: width 0.04s, background 0.05s;
+}
+
+/* ── SEQUENCER — step display */
+#seq-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  align-items: flex-end;
+  height: 52px;  /* fixed compact height */
+}
+
+.step-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.step-event {
+  width: 100%; border-radius: 1px;
+  transition: height 0.05s, background 0.05s, opacity 0.05s;
+  opacity: 0.6;
+}
+.step-cursor {
+  width: 100%; height: 2px;
+  background: var(--dim);
+  border-radius: 1px;
+  transition: background 0.04s;
+}
+.step-cursor.active { background: #ffffff; height: 3px; }
+
+/* ── CONTROLS — bottom */
+#controls {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg);
+}
+
+/* THE BUTTON */
+#mutate-btn {
+  background: transparent;
+  border: 1px solid var(--accent3);
+  color: var(--accent3);
+  font-family: var(--display);
+  font-size: clamp(22px, 6vw, 32px);
+  letter-spacing: clamp(4px, 2vw, 8px);
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 12px 20px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  text-shadow: 0 0 20px rgba(255,60,110,0.6);
+  box-shadow: 0 0 20px rgba(255,60,110,0.12), inset 0 0 20px rgba(255,60,110,0.04);
+  transition: all 0.08s;
+  position: relative;
+  overflow: hidden;
+}
+#mutate-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: rgba(255,60,110,0.08);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+#mutate-btn:active::after { transform: scaleX(1); }
+#mutate-btn:hover {
+  box-shadow: 0 0 40px rgba(255,60,110,0.3), inset 0 0 30px rgba(255,60,110,0.08);
+}
+#mutate-btn.flash {
+  background: rgba(255,60,110,0.15);
+  border-color: #ff3c6e;
+}
+#mutate-btn:active { transform: translate(1px, 1px); }
+
+.controls-info {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+@media (max-height: 680px) {
+  .controls-info { display: none; }
+  #controls { gap: 8px; }
+}
+.info-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.info-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+}
+.info-dot.kick { background: var(--accent1); box-shadow: 0 0 6px var(--accent1); }
+.info-dot.bass { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+.info-dot.snare { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+.info-label {
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* BPM badge */
+#bpm-badge {
+  position: absolute;
+  bottom: max(10px, env(safe-area-inset-bottom, 10px));
+  right: 14px;
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 3px;
+  color: var(--dim);
+  z-index: 10;
+}
+
+/* Scanline overlay on main */
+#scanlines {
+  position: fixed; inset: 0; z-index: 99; pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0,0,0,0.12) 0px,
+    rgba(0,0,0,0.12) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+/* ── BPM SELECTOR */
+#bpm-select {
+  position: relative; z-index: 2;
+  display: flex; gap: 5px;
+  margin-bottom: clamp(12px, 3vh, 24px);
+  align-items: center;
+}
+.bpm-label {
+  font-size: 9px;
+  letter-spacing: 4px;
+  color: var(--dim);
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.bpm-btn {
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--display);
+  font-size: clamp(15px, 4.5vw, 20px);
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 7px 0;
+  width: clamp(42px, 11vw, 52px);
+  text-align: center;
+  transition: color 0.1s, border-color 0.1s, text-shadow 0.1s;
+}
+.bpm-btn:hover { color: var(--accent1); border-color: var(--accent1); }
+.bpm-btn.active {
+  color: var(--accent1);
+  border-color: var(--accent1);
+  text-shadow: 0 0 10px rgba(232,255,0,0.7);
+}
+
+/* ── MORPH SPEED SLIDER */
+#morph-wrap {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 5;
+  padding: 0 14px;
+  background: linear-gradient(transparent, rgba(6,6,12,0.85));
+}
+.morph-label {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: rgba(232,255,0,0.40);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+#morph-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 44px;            /* tall touch target */
+  background: transparent; /* hide the tall area */
+  outline: none;
+  cursor: pointer;
+  border-radius: 0;
+  /* Draw the visible 2px track as a background stripe centred in the tall area */
+  background-image: linear-gradient(var(--dim), var(--dim));
+  background-size: 100% 2px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+#morph-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px; height: 28px;
+  background: var(--accent1);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(232,255,0,0.9);
+}
+#morph-slider::-moz-range-thumb {
+  width: 28px; height: 28px;
+  background: var(--accent1);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(232,255,0,0.9);
+}
+#morph-val {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--accent1);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── VOICE 2 CONTROLS */
+#voice2-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+#voice2-toggle {
+  background: transparent;
+  border: 1px solid rgba(255,60,110,0.55);
+  color: rgba(255,60,110,0.65);
+  font-family: var(--display);
+  font-size: clamp(13px, 3.5vw, 16px);
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 8px 10px;
+  white-space: nowrap;
+  transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+#voice2-toggle.active {
+  color: var(--accent3);
+  border-color: var(--accent3);
+  background: rgba(255,60,110,0.08);
+  text-shadow: 0 0 12px rgba(255,60,110,0.7);
+}
+#morph2-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 44px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  border-radius: 0;
+  background-image: linear-gradient(rgba(255,60,110,0.35), rgba(255,60,110,0.35));
+  background-size: 100% 2px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+#morph2-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px; height: 28px;
+  background: var(--accent3);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255,60,110,0.9);
+}
+#morph2-slider::-moz-range-thumb {
+  width: 28px; height: 28px;
+  background: var(--accent3);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: 0 0 14px rgba(255,60,110,0.9);
+}
+#morph2-val {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--accent3);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── RESOLVE BUTTONS */
+#resolve-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+.resolve-label {
+  font-family: var(--display);
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: rgba(0,255,204,0.45);
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.resolve-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--display);
+  font-size: clamp(16px, 5vw, 22px);
+  letter-spacing: 3px;
+  cursor: pointer;
+  padding: 8px 0;
+  text-align: center;
+  transition: color 0.1s, border-color 0.1s, text-shadow 0.1s, background 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.resolve-btn:hover { color: var(--accent2); border-color: var(--accent2); }
+.resolve-btn.active {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: rgba(0,255,204,0.08);
+  text-shadow: 0 0 12px rgba(0,255,204,0.8);
+}
+.resolve-btn.off {
+  color: var(--dim);
+  border-color: var(--dim);
+  background: transparent;
+  text-shadow: none;
+}
+
+/* Resolution flash — cyan pulse on scope when resolution fires */
+#resolve-flash {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background: rgba(0,255,204,0);
+  transition: background 0.06s;
+  z-index: 4;
+}
+#resolve-flash.bang { background: rgba(0,255,204,0.18); }
+
+/* ── REPEAT BUTTONS */
+#repeat-wrap {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.repeat-label {
+  font-family: var(--display);
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--dim);
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.repeat-btn {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--dim);
+  font-family: var(--display);
+  font-size: clamp(16px, 4.5vw, 22px);
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 12px 0;
+  text-align: center;
+  transition: color 0.06s, border-color 0.06s, background 0.06s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.repeat-btn.active {
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: rgba(0,255,204,0.10);
+  box-shadow: 0 0 16px rgba(0,255,204,0.25);
+}
+</style>
+</head>
+<body>
+
+<!-- ── INIT SCREEN -->
+<div id="init">
+  <div class="init-bg"></div>
+  <div class="init-scanlines"></div>
+  <div class="init-title">OXI<br>DAISY</div>
+  <div class="init-sub">one voice · repeat · resolve</div>
+  <div class="init-tagline">
+    a single oscillator morphs in real time<br>
+    kick ↔ bass ↔ snare — no samples
+  </div>
+  <div class="init-diagram">
+    <div class="diag-block diag-kick">KICK</div>
+    <div class="diag-arrow">⇌</div>
+    <div class="diag-block diag-bass">BASS</div>
+    <div class="diag-arrow">⇌</div>
+    <div class="diag-block diag-snare">SNARE</div>
+  </div>
+  <div id="bpm-select">
+    <span class="bpm-label">BPM</span>
+    <button class="bpm-btn" data-bpm="60">60</button>
+    <button class="bpm-btn" data-bpm="73" id="bpm-default">73</button>
+    <button class="bpm-btn" data-bpm="85">85</button>
+    <button class="bpm-btn" data-bpm="95">95</button>
+    <button class="bpm-btn" data-bpm="110">110</button>
+  </div>
+  <button id="init-btn">[ ACTIVATE ]</button>
+</div>
+
+<!-- ── MAIN UI -->
+<div id="main">
+  <div id="scope-wrap">
+    <canvas id="scope"></canvas>
+    <div class="scope-label">WAVEFORM</div>
+    <div id="state-pill">KICK</div>
+    <div id="resolve-flash"></div>
+    <div id="morph-wrap">
+      <span class="morph-label">MORPH</span>
+      <input type="range" id="morph-slider" min="0" max="100" value="15">
+      <span id="morph-val">FAST</span>
+    </div>
+  </div>
+
+  <div id="params-wrap">
+    <div class="param-cell">
+      <div class="param-label">FREQ HZ</div>
+      <div class="param-value" id="pv-freq">---</div>
+      <div class="param-bar"><div class="param-bar-fill" id="pb-freq"></div></div>
+    </div>
+    <div class="param-cell">
+      <div class="param-label">WAVE MIX</div>
+      <div class="param-value" id="pv-wave">---</div>
+      <div class="param-bar"><div class="param-bar-fill" id="pb-wave"></div></div>
+    </div>
+    <div class="param-cell">
+      <div class="param-label">FILTER</div>
+
+    </div>
+    <div class="param-cell">
+      <div class="param-label">NOISE</div>
+      <div class="param-value" id="pv-noise">---</div>
+      <div class="param-bar"><div class="param-bar-fill" id="pb-noise"></div></div>
+    </div>
+  </div>
+
+  <div id="seq-wrap" id="seq-wrap"></div>
+
+  <div id="controls">
+    <div id="resolve-wrap">
+      <span class="resolve-label">RESOLVE</span>
+      <button class="resolve-btn" id="resolve-4" data-bars="4">×4</button>
+      <button class="resolve-btn" id="resolve-2" data-bars="2">×2</button>
+    </div>
+    <div id="voice2-wrap">
+      <button id="voice2-toggle">WAVE 2</button>
+      <input type="range" id="morph2-slider" min="0" max="100" value="35">
+      <span id="morph2-val">MED</span>
+    </div>
+    <button id="mutate-btn">[ MUTATE ]</button>
+    <div class="controls-info">
+      <div class="info-item">
+        <div class="info-dot kick"></div>
+        <div class="info-label">KICK</div>
+      </div>
+      <div class="info-item">
+        <div class="info-dot bass"></div>
+        <div class="info-label">BASS</div>
+      </div>
+      <div class="info-item">
+        <div class="info-dot snare"></div>
+        <div class="info-label">SNARE</div>
+      </div>
+      <div class="info-item">
+        <div class="info-dot" style="background:var(--text);box-shadow:0 0 6px var(--text)"></div>
+        <div class="info-label">MELODY</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bpm-badge">73 BPM</div>
+</div>
+<div id="scanlines"></div>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════════════════════
+// MORPHSYNTH — One Oscillator, All Voices
+//
+// The core concept: a SINGLE oscillator node (plus a noise
+// source) has its parameters automated 120+ times per second
+// to morph between four sonic identities within a single bar:
+//
+//   KICK  — sine, low freq (55→28Hz sweep), loud, sharp env,
+//            filter wide open, no noise
+//   BASS  — triangle/saw blend, mid-low freq (scale degree),
+//            filter mid, slight noise, long decay
+//   SNARE — high freq noise dominates, osc adds body click,
+//            filter closed except high-pass band, short env
+//   MELODY— triangle, higher octave, bandpass filter, medium
+//            decay, ghost probability
+//
+// All transitions happen at sub-millisecond precision via
+// Web Audio API scheduled automation — no human could do this.
+// ════════════════════════════════════════════════════════
+
+let BPM = 73;
+let STEP_DUR = 60 / (BPM * 4);
+const STEPS = 16;
+const LOOKAHEAD = 0.22;
+const SCHED_INT = 22;
+
+// morphSpeed: 0=instant, 1=full step, >1=multi-step
+let morphSpeed = 0.15;
+
+// ── REPEAT SYSTEM
+// While a repeat button is held, a parallel loop fires the last note
+// at the chosen subdivision. Main clock never stops — loop stays in sync.
+let repeatDiv      = 0;       // active subdivision (0=off, 4/8/16)
+let repeatNextTime = 0;       // repeater's own lookahead pointer
+let lastNote       = null;    // snapshot: {role, freq, vel, isGhost}
+
+// ── VOICE 2 STATE
+// Second oscillator + noise chain running in parallel with Voice 1.
+// Follows V1 rhythm but makes independent sonic decisions per role.
+let voice2Active  = false;   // toggled by button
+let morphSpeed2   = 0.35;    // independent morph speed for V2
+// V2 audio nodes — declared here, initialised in initAudio
+let osc2Node = null, noise2Source = null, noise2Buf = null;
+let osc2Gain = null, noise2Gain = null;
+let filter2Node = null, deClick2 = null, waveshaper2 = null;
+
+// ── RESOLUTION SYSTEM
+// Slider left=never, right=every bar, default=~every 4 bars.
+// When resolution fires: one bar where melody+bass lock to root,
+// kick simplifies, snare ghosts — a moment of harmonic gravity.
+let resolveBarTarget  = 4;     // 0=off, 2=every 2, 4=every 4
+let barCount          = 0;     // total bars played
+let barsSinceResolve  = 0;     // counts up to resolveBarTarget
+let resolveActive     = false; // true during the resolution bar
+let resolvePattern    = null;  // the locked-to-root pattern for that bar
+
+// ── RESOLVE SYSTEM — deterministic bar counter, no probability
+// resolveBarTarget: 0=off, 2=every 2 bars, 4=every 4 bars
+// barsSinceResolve counts up; when it hits target, resolve fires exactly.
+const RESOLVE_STYLES = ['STEPWISE', 'LEADING', 'RHYTHMIC', 'UNISON', 'CASCADE'];
+let resolveStyle   = 'STEPWISE';
+let resolveWeights = [0.30, 0.20, 0.20, 0.20, 0.10]; // probabilities per style
+
+// ── PICK STARTING KEY — random ME/Arabic on every boot
+function pickStartingKey() {
+  // Always start in arabic or dramatic family
+  const startFamilies = ['arabic', 'dramatic', 'turkish'];
+  currentFamily = startFamilies[Math.floor(Math.random() * startFamilies.length)];
+  const scalePool = SCALE_FAMILIES[currentFamily];
+  scaleName = scalePool[Math.floor(Math.random() * scalePool.length)];
+  scaleIntervals = SCALES[scaleName];
+  const rootPool = FAMILY_ROOTS[currentFamily];
+  const rootName = rootPool[Math.floor(Math.random() * rootPool.length)];
+  rootHz = ROOTS_HZ[rootName];
+  updateHarmonicState();
+}
+
+// ── MODULATE KEY — moves to a related key/scale
+// Can stay in family, shift to adjacent family, or modulate by interval
+function modulateKey() {
+  const r = Math.random();
+
+  if (r < 0.40) {
+    // Stay in current family — pick a different scale, same or adjacent root
+    const scalePool = SCALE_FAMILIES[currentFamily];
+    scaleName = scalePool[Math.floor(Math.random() * scalePool.length)];
+    scaleIntervals = SCALES[scaleName];
+    // Semitone modulation is idiomatic in maqam — small root shifts
+    if (Math.random() < 0.45) {
+      const rootPool = FAMILY_ROOTS[currentFamily];
+      const rootName = rootPool[Math.floor(Math.random() * rootPool.length)];
+      rootHz = ROOTS_HZ[rootName];
+    }
+
+  } else if (r < 0.65) {
+    // Modulate by interval — 4th up, 5th down, or semitone (very Arabic)
+    const intervals = [
+      Math.pow(2, 5/12),   // up a 4th
+      Math.pow(2, -7/12),  // down a 5th
+      Math.pow(2, 1/12),   // up a semitone — maqam modulation
+      Math.pow(2, -1/12),  // down a semitone
+      Math.pow(2, 2/12),   // up a tone
+    ];
+    const weights = [0.30, 0.25, 0.20, 0.15, 0.10];
+    let acc = 0; const rv = Math.random();
+    let interval = intervals[0];
+    for (let i = 0; i < intervals.length; i++) {
+      acc += weights[i];
+      if (rv < acc) { interval = intervals[i]; break; }
+    }
+    // Keep root in a sensible sub-bass range (29–58 Hz)
+    let newRoot = rootHz * interval;
+    while (newRoot > 58) newRoot /= 2;
+    while (newRoot < 29) newRoot *= 2;
+    rootHz = newRoot;
+    // Keep scale family consistent
+    const scalePool = SCALE_FAMILIES[currentFamily];
+    scaleName = scalePool[Math.floor(Math.random() * scalePool.length)];
+    scaleIntervals = SCALES[scaleName];
+
+  } else {
+    // Shift to an adjacent family — drift the tonal world gradually
+    const families = Object.keys(SCALE_FAMILIES);
+    // Drift weights toward adjacent families
+    familyWeights[currentFamily] = Math.max(0.05, familyWeights[currentFamily] - 0.08);
+    const newFamilies = families.filter(f => f !== currentFamily);
+    // Pick weighted adjacent family
+    const totalW = newFamilies.reduce((a,f) => a + familyWeights[f], 0);
+    let acc2 = 0; const rv2 = Math.random() * totalW;
+    currentFamily = newFamilies[newFamilies.length-1];
+    for (const f of newFamilies) {
+      acc2 += familyWeights[f];
+      if (rv2 < acc2) { currentFamily = f; break; }
+    }
+    familyWeights[currentFamily] = Math.min(0.60, familyWeights[currentFamily] + 0.06);
+    // Pick scale and root from new family
+    const scalePool = SCALE_FAMILIES[currentFamily];
+    scaleName = scalePool[Math.floor(Math.random() * scalePool.length)];
+    scaleIntervals = SCALES[scaleName];
+    const rootPool = FAMILY_ROOTS[currentFamily];
+    const rootName = rootPool[Math.floor(Math.random() * rootPool.length)];
+    rootHz = ROOTS_HZ[rootName];
+  }
+
+  updateHarmonicState();
+}
+
+function pickResolveStyle() {
+  // Drift weights slightly each mutation — personality slowly evolves
+  resolveWeights = resolveWeights.map(w => Math.max(0.05, Math.min(0.70, w + (Math.random()-0.5)*0.08)));
+  // Normalise
+  const sum = resolveWeights.reduce((a,b) => a+b, 0);
+  resolveWeights = resolveWeights.map(w => w/sum);
+  // Weighted random pick
+  const r = Math.random();
+  let acc = 0;
+  for (let i = 0; i < RESOLVE_STYLES.length; i++) {
+    acc += resolveWeights[i];
+    if (r < acc) { resolveStyle = RESOLVE_STYLES[i]; return; }
+  }
+  resolveStyle = RESOLVE_STYLES[0];
+}
+
+// ── SHARED HARMONIC STATE
+// Computed from rootHz + scaleIntervals whenever scale changes.
+// All four voices read these so they stay in tune with each other.
+let kickRootHz   = 36.71;   // root — kick sub landing frequency
+let snareBodyHz  = 55.00;   // 5th degree — snare crack body frequency
+let kickStartHz  = 147.0;   // root * 4 — kick transient (2 octaves up)
+let snareTopHz   = 165.0;   // 5th * 3 — snare attack spike
+
+// Call this whenever rootHz or scaleIntervals changes
+function updateHarmonicState() {
+  // Kick: root note, sub register (octave 0-1)
+  kickRootHz  = rootHz;
+  kickStartHz = rootHz * 4;  // two octaves up for the click transient
+
+  // Snare body: 5th scale degree (index 4 in most 7-note scales, or closest)
+  const fifthIdx = scaleIntervals.length >= 5 ? 4 : Math.floor(scaleIntervals.length * 0.6);
+  const fifthSemi = scaleIntervals[fifthIdx];
+  snareBodyHz = rootHz * Math.pow(2, fifthSemi / 12) * 2; // one octave up
+  snareTopHz  = snareBodyHz * 2.5; // spike frequency for snare attack
+}
+
+// ── SCALES — Middle Eastern / Persian / Arabic family + Western modal
+const SCALES = {
+  // ── Arabic / Maqam family
+  HIJAZ:        [0,1,4,5,7,8,10],  // most recognisable Arabic sound — aug 2nd on 2nd degree
+  HIJAZ_KAR:    [0,1,4,5,7,8,11],  // double harmonic — extremely tense, symmetrical
+  SABA:         [0,1,3,4,7,8,10],  // very dark — minor 2nd + aug intervals, mournful
+  NAHAWAND:     [0,2,3,5,7,8,11],  // Arabic minor w/ raised 7th — expressive, yearning
+  BAYATI:       [0,1,3,5,7,8,10],  // Egyptian/Arabic — melancholic, introspective
+  RAST:         [0,2,3,5,7,9,10],  // Egyptian maqam — warm, grounded (approx quarter tones)
+  // ── Persian family
+  PERSIAN:      [0,1,4,5,6,8,11],  // dramatic — tritone + major 7th, very tense
+  CHAHARGAH:    [0,2,3,6,7,8,11],  // Persian dastgah — angular, unsettled
+  SHUR:         [0,1,3,5,7,8,10],  // Persian — gentle melancholy, close to Bayati
+  // ── Turkish / Byzantine
+  PHRYGIAN_DOM: [0,1,4,5,7,8,10],  // Phrygian dominant — Spanish/flamenco/Arabic crossover
+  BYZANTINE:    [0,1,4,5,7,8,11],  // Byzantine scale — same as Hijaz Kar, rich church sound
+  NIKRIZ:       [0,2,3,6,7,9,10],  // Turkish Nikriz — bright with tritone tension
+  // ── Western modal (kept for contrast and resolution)
+  DORIAN:       [0,2,3,5,7,9,10],
+  PHRYGIAN:     [0,1,3,5,7,8,10],
+  HUNGARIAN:    [0,2,3,6,7,8,11],
+  BLUES:        [0,3,5,6,7,10],
+};
+
+// Scale families — used for weighted modulation so changes feel intentional
+const SCALE_FAMILIES = {
+  arabic:    ['HIJAZ','SABA','BAYATI','NAHAWAND','RAST'],
+  dramatic:  ['HIJAZ_KAR','PERSIAN','CHAHARGAH','BYZANTINE'],
+  turkish:   ['PHRYGIAN_DOM','NIKRIZ','SHUR'],
+  western:   ['DORIAN','PHRYGIAN','HUNGARIAN','BLUES'],
+};
+// Starting family weights — biased heavily toward ME/Arabic world
+let familyWeights = { arabic: 0.45, dramatic: 0.25, turkish: 0.20, western: 0.10 };
+
+// Common maqam final notes (tonic pitches) — roots typical in Middle Eastern music
+const ROOTS_HZ = {
+  D:  36.71,   // Rast, Bayati, Hijaz — most common maqam final
+  E:  41.20,   // Saba, Sikah region
+  G:  49.00,   // Rast on G, Nahawand
+  A:  55.00,   // Hijaz on A, Bayati
+  C:  32.70,   // Rast on C, Western crossover
+  F:  43.65,   // Hijaz on F, Nahawand
+  Bb: 29.14,   // Nahawand, Arabic maqamat
+  B:  30.87,   // Persian, Chahargah
+};
+
+// Root sets by family — modulate to culturally appropriate roots
+const FAMILY_ROOTS = {
+  arabic:   ['D','G','A','F','C'],
+  dramatic: ['D','E','A','B'],
+  turkish:  ['D','G','A','C'],
+  western:  ['D','G','A','C','F'],
+};
+
+// Current family — tracks which family we're in for modulation logic
+let currentFamily = 'arabic';
+
+// ── SYNTH STATE
+let actx = null;
+// Shared audio nodes (all voices route through these)
+let masterBus, masterComp, masterLimiter;
+let oscNode = null;       // THE oscillator
+let noiseSource = null;   // noise buffer (looping)
+let noiseBuf = null;
+let oscGain, noiseGain;   // amplitude envelopes injected per-step
+let waveshaper;           // soft clip for snare grit
+let filterNode;           // THE filter — morphs between states
+let outputGain;           // final output level
+
+// ── PATTERN STATE
+let currentStep = 0;
+let nextNoteTime = 0;
+let schedTimer = null;
+let isPlaying = false;
+let pendingMutation = null; // set by MUTATE button, applied at next step 0
+
+// Scale/root — starts random in the Arabic/ME family
+let scaleName = 'HIJAZ';
+let scaleIntervals = SCALES['HIJAZ'];
+let rootHz = ROOTS_HZ['D'];
+// Will be properly randomised in startPlay() before first pattern gen
+// Initialise harmonic state (will be called again on each mutate)
+updateHarmonicState();
+
+// ── PROBABILISTIC PATTERN
+// Each step has: role, probability, and role-specific params
+// Role: 'kick' | 'bass' | 'snare' | 'melody' | 'rest'
+let pattern = [];
+
+// ── LIVE DISPLAY STATE
+let displayState = { role: 'rest', freq: 0, waveMix: 0, noiseAmt: 0 };
+
+// ── OSCILLOSCOPE
+let scopeCanvas, scopeCtx, scopeW, scopeH;
+let analyser, scopeData;
+let scopeColor = '#e8ff00';
+
+// ════════════════════════════════════════════════════════
+// AUDIO INIT
+// ════════════════════════════════════════════════════════
+
+function initAudio() {
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  const sr = actx.sampleRate;
+
+  // Build noise buffer (2 sec looping)
+  noiseBuf = actx.createBuffer(1, sr * 2, sr);
+  const nd = noiseBuf.getChannelData(0);
+  for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+
+  // ── MASTER CHAIN
+  masterLimiter = actx.createDynamicsCompressor();
+  masterLimiter.threshold.value = -1.5;
+  masterLimiter.knee.value = 1;
+  masterLimiter.ratio.value = 20;
+  masterLimiter.attack.value = 0.0003;
+  masterLimiter.release.value = 0.04;
+  masterLimiter.connect(actx.destination);
+
+  masterComp = actx.createDynamicsCompressor();
+  masterComp.threshold.value = -12;
+  masterComp.knee.value = 5;
+  masterComp.ratio.value = 4;
+  masterComp.attack.value = 0.006;
+  masterComp.release.value = 0.16;
+  masterComp.connect(masterLimiter);
+
+  // Tape warmth waveshaper on master
+  const tapeWS = actx.createWaveShaper();
+  tapeWS.oversample = '4x';
+  const tc = new Float32Array(512);
+  for (let i = 0; i < 512; i++) {
+    const x = (i * 2 / 512) - 1;
+    tc[i] = Math.tanh(x * 1.8) * 0.75;
+  }
+  tapeWS.curve = tc;
+  tapeWS.connect(masterComp);
+
+  masterBus = actx.createGain();
+  masterBus.gain.value = 0.85;
+  masterBus.connect(tapeWS);
+
+  // ── ANALYSER for oscilloscope
+  analyser = actx.createAnalyser();
+  analyser.fftSize = 1024;
+  analyser.smoothingTimeConstant = 0.55;
+  scopeData = new Float32Array(analyser.frequencyBinCount);
+  analyser.connect(masterBus);
+
+  // ── THE SHARED FILTER
+  // This one filter morphs: lowpass (kick/bass) ↔ highpass+bandpass (snare/melody)
+  filterNode = actx.createBiquadFilter();
+  filterNode.type = 'lowpass';
+  filterNode.frequency.value = 400;
+  filterNode.Q.value = 1.5;
+  filterNode.connect(analyser);
+
+  // ── DE-CLICK COMPRESSOR — catches transient discontinuities
+  // Must be declared before waveshaper connects to it
+  const deClick = actx.createDynamicsCompressor();
+  deClick.threshold.value = -3;
+  deClick.knee.value = 6;
+  deClick.ratio.value = 8;
+  deClick.attack.value = 0.0003;
+  deClick.release.value = 0.025;
+  deClick.connect(filterNode);
+
+  // ── WAVESHAPER for snare grit
+  waveshaper = actx.createWaveShaper();
+  waveshaper.oversample = '2x';
+  const wsc = new Float32Array(512);
+  for (let i = 0; i < 512; i++) {
+    const x = (i * 2 / 512) - 1;
+    wsc[i] = Math.tanh(x * 3.5) * 0.7;
+  }
+  waveshaper.curve = wsc;
+  waveshaper.connect(deClick);
+
+  // ── OSC GAIN (envelope)
+  oscGain = actx.createGain();
+  oscGain.gain.value = 0.0001;
+  oscGain.connect(deClick);
+  oscGain.connect(filterNode); // also direct, for cleaner bass
+
+  // ── NOISE GAIN (envelope)
+  noiseGain = actx.createGain();
+  noiseGain.gain.value = 0.0001;
+  noiseGain.connect(deClick);
+
+  // ── THE OSCILLATOR — runs continuously, params morphed
+  oscNode = actx.createOscillator();
+  oscNode.type = 'sine';
+  oscNode.frequency.value = 55;
+  oscNode.connect(oscGain);
+  oscNode.start();
+
+  // ── VOICE 2 AUDIO CHAIN
+  // Mirrors V1 structure — separate osc, noise, filter, declick
+  // Routes into the same analyser so both appear on oscilloscope
+  noise2Buf = actx.createBuffer(1, sr * 2, sr);
+  { const d = noise2Buf.getChannelData(0); for (let i=0;i<d.length;i++) d[i]=Math.random()*2-1; }
+
+  // V2 level gain — pulls V2 down slightly so it blends rather than fights V1
+  const v2Level = actx.createGain();
+  v2Level.gain.value = 0.72;
+  v2Level.connect(analyser);
+
+  filter2Node = actx.createBiquadFilter();
+  filter2Node.type = 'lowpass';
+  filter2Node.frequency.value = 800;
+  filter2Node.Q.value = 1.0;
+  filter2Node.connect(v2Level);
+
+  deClick2 = actx.createDynamicsCompressor();
+  deClick2.threshold.value = -3; deClick2.knee.value = 6;
+  deClick2.ratio.value = 8; deClick2.attack.value = 0.0003;
+  deClick2.release.value = 0.025;
+  deClick2.connect(filter2Node);
+
+  waveshaper2 = actx.createWaveShaper();
+  waveshaper2.oversample = '2x';
+  const wsc2 = new Float32Array(512);
+  for (let i=0;i<512;i++) { const x=(i*2/512)-1; wsc2[i]=Math.tanh(x*3.0)*0.68; }
+  waveshaper2.curve = wsc2;
+  waveshaper2.connect(deClick2);
+
+  osc2Gain = actx.createGain(); osc2Gain.gain.value = 0.0001;
+  osc2Gain.connect(deClick2);
+  osc2Gain.connect(filter2Node);
+
+  noise2Gain = actx.createGain(); noise2Gain.gain.value = 0.0001;
+  noise2Gain.connect(deClick2);
+
+  osc2Node = actx.createOscillator();
+  osc2Node.type = 'sawtooth';  // V2 defaults to saw — contrast with V1 sine
+  osc2Node.frequency.value = 55;
+  osc2Node.connect(osc2Gain);
+  osc2Node.start();
+
+  noise2Source = actx.createBufferSource();
+  noise2Source.buffer = noise2Buf;
+  noise2Source.loop = true;
+
+  // ── NOISE SOURCE — runs continuously, gain envelope morphed (V1)
+  noiseSource = actx.createBufferSource();
+  noiseSource.buffer = noiseBuf;
+  noiseSource.loop = true;
+  noiseSource.connect(noiseGain);
+  noiseSource.start();
+
+  noise2Source.connect(noise2Gain);
+  noise2Source.start();
+}
+
+// ════════════════════════════════════════════════════════
+// THE MORPHING ENGINE
+// Each step, we blast a series of scheduled param changes
+// that sculpt the oscillator + filter + noise into the
+// target voice — faster than any human.
+// ════════════════════════════════════════════════════════
+
+function morphToKick(t, vel, step) {
+  const maxWindow = STEP_DUR * Math.max(0.9, morphSpeed);
+  const decay = Math.min(0.28 + Math.random() * 0.18 + morphSpeed * 0.25, maxWindow * 0.95);
+  // Kick sits in sub region — slight loudness boost to match perceived level
+  const compVel = vel * loudnessComp(kickRootHz);
+
+  // ── HARMONICALLY LINKED: kick starts on root, sweeps to sub-root
+  // kickStartHz = root * 4 (2 octaves up) — the beater click is IN KEY
+  // kickRootHz  = root — the body of the kick IS the tonic
+  // Landing freq = root / 2 — sub octave below root
+  const subLand = Math.max(20, kickRootHz * 0.5);
+
+  oscNode.frequency.cancelScheduledValues(t);
+  // Transient spike — pitched to root*4 so the click is harmonic
+  oscNode.frequency.linearRampToValueAtTime(kickStartHz, t + 0.003);
+  oscNode.frequency.exponentialRampToValueAtTime(kickRootHz, t + 0.010);
+  oscNode.frequency.exponentialRampToValueAtTime(kickRootHz * 0.7, t + 0.030);
+  oscNode.frequency.exponentialRampToValueAtTime(subLand, t + decay * 0.75);
+
+  oscGain.gain.cancelScheduledValues(t);
+  oscGain.gain.setTargetAtTime(0.0001, t, 0.002);
+  oscGain.gain.linearRampToValueAtTime(compVel * 1.4, t + 0.006);
+  oscGain.gain.exponentialRampToValueAtTime(compVel * 0.5, t + Math.max(0.012, decay * 0.18));
+  oscGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  noiseGain.gain.cancelScheduledValues(t);
+  noiseGain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.Q.cancelScheduledValues(t);
+  filterNode.frequency.setValueAtTime(280, t);
+  filterNode.frequency.linearRampToValueAtTime(80, t + decay * 0.6);
+  filterNode.Q.setValueAtTime(0.8, t);
+
+  scheduleDisplayUpdate(t, 'kick', kickRootHz, 0, 120, 0);
+}
+
+function morphToBass(t, vel, freq, isGhost, resolveDecay) {
+  const maxWindow = STEP_DUR * Math.max(0.9, morphSpeed);
+  const decay = resolveDecay > 0
+    ? resolveDecay
+    : Math.min(0.32 + Math.random() * 0.22 + morphSpeed * 0.35, maxWindow * 0.95);
+  // Bass compensation — low freqs get slight boost vs reference
+  const compVel = vel * loudnessComp(Math.max(20, freq));
+  const targetFreq = freq;
+
+  // ── OSCILLATOR: sawtooth-ish character via periodic morphing
+  // We can't swap wave types mid-note but we can use frequency tricks:
+  // For bass: moderate freq, medium decay
+  oscNode.frequency.cancelScheduledValues(t);
+  oscNode.frequency.setValueAtTime(targetFreq * 1.02, t);  // tiny pitch fall = pluck feel
+  oscNode.frequency.exponentialRampToValueAtTime(targetFreq, t + 0.025);
+
+  const baseVol = isGhost ? compVel * 0.22 : compVel * 0.95;
+  oscGain.gain.cancelScheduledValues(t);
+  oscGain.gain.setTargetAtTime(0.0001, t, 0.003);
+  oscGain.gain.linearRampToValueAtTime(baseVol, t + 0.010);
+  oscGain.gain.setTargetAtTime(baseVol * 0.55, t + 0.04, 0.06);
+  oscGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  const noiseAmt = 0.03 + Math.random() * 0.04;
+  noiseGain.gain.cancelScheduledValues(t);
+  noiseGain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noiseGain.gain.linearRampToValueAtTime(noiseAmt * baseVol, t + 0.012);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.4);
+
+  // ── FILTER: opens then closes — wah-like fundamental
+  // This is the key: the filter does the "picking" motion
+  const filtPeak = 180 + targetFreq * 3.5 + Math.random() * 120;
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.Q.cancelScheduledValues(t);
+  filterNode.frequency.setValueAtTime(60, t);
+  filterNode.frequency.exponentialRampToValueAtTime(Math.min(4000, filtPeak), t + 0.018);
+  filterNode.frequency.exponentialRampToValueAtTime(Math.max(60, targetFreq * 0.9), t + decay * 0.55);
+  filterNode.Q.setValueAtTime(3.5 + Math.random() * 2.5, t);
+  filterNode.Q.exponentialRampToValueAtTime(0.8, t + decay * 0.4);
+
+  scheduleDisplayUpdate(t, 'bass', targetFreq, 0.3, filtPeak, noiseAmt * 100);
+}
+
+function morphToSnare(t, vel, isGhost) {
+  const maxWindow = STEP_DUR * Math.max(0.9, morphSpeed);
+  const decay = Math.min(0.055 + Math.random() * 0.045 + morphSpeed * 0.55, maxWindow * 0.92);
+  // Snare compensation — mid-high freq, pull back slightly
+  const compVel = vel * loudnessComp(snareBodyHz);
+
+  // ── HARMONICALLY LINKED: snare body = 5th degree of current scale
+  // snareTopHz  = 5th * 2.5 — attack spike is an inharmonic partial of the 5th
+  // snareBodyHz = 5th one octave up — body click reinforces the dominant
+  // Small random detune keeps it percussive rather than pitched
+  const detune = 1 + (Math.random() - 0.5) * 0.08;
+  const bodyFreq = snareBodyHz * detune;
+
+  oscNode.frequency.cancelScheduledValues(t);
+  oscNode.frequency.setValueAtTime(snareTopHz * detune, t);
+  oscNode.frequency.exponentialRampToValueAtTime(bodyFreq, t + 0.008);
+  oscNode.frequency.exponentialRampToValueAtTime(bodyFreq * 0.55, t + decay);
+
+  const bodyVol = isGhost ? compVel * 0.12 : compVel * 0.55;
+  oscGain.gain.cancelScheduledValues(t);
+  oscGain.gain.setTargetAtTime(0.0001, t, 0.002);
+  oscGain.gain.linearRampToValueAtTime(bodyVol, t + 0.004);
+  oscGain.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.7);
+
+  const noiseVol = isGhost ? compVel * 0.25 : compVel * 1.0;
+  noiseGain.gain.cancelScheduledValues(t);
+  noiseGain.gain.setTargetAtTime(0.0001, t, 0.002);
+  noiseGain.gain.linearRampToValueAtTime(noiseVol, t + 0.004);
+  noiseGain.gain.exponentialRampToValueAtTime(noiseVol * 0.3, t + 0.020);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  // ── FILTER: high-pass — cuts the low mud, keeps the crack
+  // The INSTANT transition to highpass is THE morphing moment
+  // It's jarring, violent — exactly what snare needs
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.Q.cancelScheduledValues(t);
+  // Spike to HP character
+  filterNode.frequency.setValueAtTime(3800 + Math.random() * 2200, t);
+  filterNode.frequency.exponentialRampToValueAtTime(1200, t + decay * 0.5);
+  filterNode.Q.setValueAtTime(2.5 + Math.random() * 2, t);
+  filterNode.Q.exponentialRampToValueAtTime(0.8, t + decay);
+
+  scheduleDisplayUpdate(t, 'snare', bodyFreq, 0.9, 4200, noiseVol * 100);
+}
+
+function morphToMelody(t, vel, freq, isGhost, resolveDecay) {
+  const maxWindow = STEP_DUR * Math.max(0.9, morphSpeed);
+  const decay = resolveDecay > 0
+    ? resolveDecay
+    : Math.min(0.18 + Math.random() * 0.28 + morphSpeed * 0.55, maxWindow * 0.95);
+  // Melody compensation — high octave notes get significant gain reduction
+  const compVel = vel * loudnessComp(Math.max(80, freq));
+
+  // ── OSCILLATOR: clean freq, high octave, longer decay
+  oscNode.frequency.cancelScheduledValues(t);
+  oscNode.frequency.setValueAtTime(freq, t);
+  // Slight vibrato: tiny LFO simulation via scheduled micro-steps
+  // (Real LFO would need OscillatorNode → gain → frequency; this is scheduled automation)
+  const vibDepth = freq * 0.004;
+  const vibRate = 5; // Hz
+  const vibSteps = Math.floor(decay * vibRate * 2);
+  for (let v = 0; v < vibSteps; v++) {
+    const vt = t + 0.04 + (v / (vibRate * 2));
+    const vf = freq + Math.sin(v * Math.PI) * vibDepth;
+    oscNode.frequency.setValueAtTime(vf, vt);
+  }
+
+  const baseVol = isGhost ? compVel * 0.14 : compVel * 0.65;
+  oscGain.gain.cancelScheduledValues(t);
+  oscGain.gain.setTargetAtTime(0.0001, t, 0.003);
+  oscGain.gain.linearRampToValueAtTime(baseVol, t + 0.014);
+  oscGain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  noiseGain.gain.cancelScheduledValues(t);
+  noiseGain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.015);
+
+  // ── FILTER: bandpass resonance — gives melodic warmth
+  const filtFreq = freq * 2.2 + Math.random() * freq;
+  filterNode.frequency.cancelScheduledValues(t);
+  filterNode.Q.cancelScheduledValues(t);
+  filterNode.frequency.setValueAtTime(120, t);
+  filterNode.frequency.exponentialRampToValueAtTime(Math.min(6000, filtFreq), t + 0.022);
+  filterNode.frequency.exponentialRampToValueAtTime(freq * 1.5, t + decay * 0.6);
+  filterNode.Q.setValueAtTime(4.5 + Math.random() * 3, t);
+  filterNode.Q.exponentialRampToValueAtTime(1.2, t + decay * 0.5);
+
+  scheduleDisplayUpdate(t, 'melody', freq, 0.55, filtFreq, 2);
+}
+
+// ════════════════════════════════════════════════════════
+// PATTERN GENERATION — probabilistic
+// ════════════════════════════════════════════════════════
+
+// ── EQUAL LOUDNESS COMPENSATION
+// Human hearing is most sensitive around 1-4kHz and drops off at low and high extremes.
+// This applies a simple inverse curve so high notes don't blast and low notes don't disappear.
+// Reference point: 200Hz (bass region) = 1.0 gain. Higher freqs scale down, very low scale up slightly.
+// Based on a simplified Fletcher-Munson approximation — good enough for musical purposes.
+function loudnessComp(freq) {
+  // Normalise against 200Hz reference
+  const ref = 200;
+  const ratio = freq / ref;
+  // Log curve: gain drops as freq rises above ref, slight boost below
+  // At 400Hz (×2): ~0.88, at 800Hz (×4): ~0.76, at 1600Hz (×8): ~0.62, at 3200Hz (×16): ~0.50
+  // At 100Hz (×0.5): ~1.08, at 50Hz (×0.25): ~1.12
+  const gain = Math.pow(ratio, -0.22);
+  return Math.max(0.45, Math.min(1.20, gain));
+}
+
+function buildFreqPool(root, intervals, octave) {
+  const pool = [];
+  for (let o = 0; o <= 1; o++) {
+    intervals.forEach(s => pool.push(root * Math.pow(2, octave + o + s / 12)));
+  }
+  return pool;
+}
+
+// ── BUILD RESOLVE PATTERN
+// Style locked per mutation, but every CALL gets randomised
+// step positions, snare weight, bass walk variation, and
+// melody rhythm — so the same style sounds different each time.
+function buildResolvePattern() {
+  const melPool  = buildFreqPool(rootHz, scaleIntervals, 3);
+  const bassPool = buildFreqPool(rootHz, scaleIntervals, 1);
+
+  const mel = (i) => melPool[Math.min(i, melPool.length-1)];
+  const bas = (i) => bassPool[Math.min(i, bassPool.length-1)];
+
+  const rootMel   = mel(0); const rootBas   = bas(0);
+  const secondMel = mel(1); const thirdMel  = mel(2);
+  const fourthMel = mel(3); const fifthMel  = mel(4);
+  const sixthMel  = mel(5); const seventhMel= mel(scaleIntervals.length-1);
+  const fifthBas  = bas(Math.min(4, bassPool.length-1));
+  const thirdBas  = bas(Math.min(2, bassPool.length-1));
+
+  // Landing step: randomise within second half of bar so it never
+  // always lands on step 8. Snaps to even step for rhythmic feel.
+  const landingStep = 2 * (4 + Math.floor(Math.random() * 3)); // 8, 10, or 12
+  const resolvedDecay = (STEPS - landingStep) * STEP_DUR * 0.92;
+
+  // Velocity variation — each call gets slightly different dynamics
+  const dynShift = 0.85 + Math.random() * 0.30;
+
+  const mk = (role, vel, freq, isGhost=false, resolveDecay=0) =>
+    ({ role, vel: Math.min(1, vel * dynShift), freq, isGhost, resolveDecay });
+
+  const pat = new Array(STEPS).fill(null)
+    .map(() => mk('rest', 0, rootHz));
+
+  // ── KICK: beat 1 always; probabilistic second kick for variety
+  pat[0] = mk('kick', 0.95, rootHz);
+  const kick2 = [3, 4, 10, 11][Math.floor(Math.random() * 4)];
+  if (Math.random() < 0.55) pat[kick2] = mk('kick', 0.55 + Math.random()*0.25, rootHz);
+
+  // ── SNARE: varied weight — not always a ghost
+  // Three flavours chosen randomly each call
+  const snareStyle = Math.random();
+  if (snareStyle < 0.35) {
+    // Full snare on beat 3 + optional ghost
+    const s1 = Math.floor(STEPS * 0.5);
+    pat[s1] = mk('snare', 0.70 + Math.random()*0.25, rootHz);
+    if (Math.random() < 0.5) {
+      const s2 = s1 + 2 + Math.floor(Math.random()*2);
+      if (s2 < STEPS) pat[s2] = mk('snare', 0.30 + Math.random()*0.20, rootHz, true);
+    }
+  } else if (snareStyle < 0.65) {
+    // Two snares — syncopated, one full one ghost
+    const offsets = [[4,9],[6,11],[5,12],[4,11]];
+    const [a,b] = offsets[Math.floor(Math.random()*offsets.length)];
+    if (a < STEPS) pat[a] = mk('snare', 0.60 + Math.random()*0.30, rootHz);
+    if (b < STEPS) pat[b] = mk('snare', 0.25 + Math.random()*0.20, rootHz, true);
+  } else {
+    // Sparse — single quiet snare, positioned randomly in back half
+    const s = 6 + Math.floor(Math.random() * 6);
+    if (s < STEPS) pat[s] = mk('snare', 0.40 + Math.random()*0.30, rootHz, Math.random()<0.4);
+  }
+
+  // ── BASS: varied walk-in — three different bass approaches
+  const bassStyle = Math.floor(Math.random() * 3);
+  if (bassStyle === 0) {
+    // Root-heavy: lands on root early and holds
+    pat[1]  = mk('bass', 0.55, fifthBas);
+    pat[4]  = mk('bass', 0.72, rootBas);
+    pat[landingStep] = mk('bass', 0.85, rootBas, false, resolvedDecay);
+    if (Math.random() < 0.6) pat[12] = mk('bass', 0.40, rootBas, true);
+  } else if (bassStyle === 1) {
+    // Walking: steps through scale toward root
+    const walkSteps = [2, 5, 7];
+    const walkFreqs = [fifthBas, thirdBas, fifthBas];
+    walkSteps.forEach((s,i) => { if (s < STEPS) pat[s] = mk('bass', 0.50+i*0.08, walkFreqs[i]); });
+    pat[landingStep] = mk('bass', 0.88, rootBas, false, resolvedDecay);
+  } else {
+    // Sparse: just the landing with one approach
+    const approachStep = landingStep - 2 - Math.floor(Math.random()*2);
+    if (approachStep > 0) pat[approachStep] = mk('bass', 0.60, fifthBas);
+    pat[landingStep] = mk('bass', 0.90, rootBas, false, resolvedDecay);
+    if (Math.random() < 0.4) pat[2] = mk('bass', 0.35, rootBas, true);
+  }
+
+  // ── MELODY: style-specific gesture with per-call step randomisation
+  // Approach steps are offset ±1 randomly so it never sounds identical
+  const jit = () => (Math.random() < 0.5 ? 1 : 0); // ±1 step jitter
+
+  switch (resolveStyle) {
+
+    case 'STEPWISE': {
+      // Walk down: 4th → 3rd → 2nd → root, steps jitter ±1
+      const s1 = Math.max(1, 2 + jit());
+      const s2 = Math.max(s1+1, 4 + jit() + jit());
+      const s3 = Math.max(s2+1, 7 + jit());
+      if (s1 < STEPS) pat[s1] = mk('melody', 0.50+Math.random()*0.15, fourthMel);
+      if (s2 < STEPS) pat[s2] = mk('melody', 0.58+Math.random()*0.15, thirdMel);
+      if (s3 < STEPS) pat[s3] = mk('melody', 0.68+Math.random()*0.15, secondMel);
+      pat[landingStep] = mk('melody', 0.90+Math.random()*0.08, rootMel, false, resolvedDecay);
+      // Optional ghost echo after landing
+      if (Math.random() < 0.45 && landingStep+2 < STEPS)
+        pat[landingStep+2] = mk('melody', 0.25, rootMel, true);
+      break;
+    }
+
+    case 'LEADING': {
+      // Tension on 7th, resolve to root — 7th position jitters
+      const tensionStep = Math.max(3, 5 + jit() + jit());
+      const ghostStep   = tensionStep + 1;
+      if (Math.random() < 0.5 && tensionStep > 2)
+        pat[tensionStep-2] = mk('melody', 0.45, fifthMel);
+      if (tensionStep < STEPS) pat[tensionStep] = mk('melody', 0.75+Math.random()*0.15, seventhMel);
+      if (ghostStep < landingStep) pat[ghostStep] = mk('melody', 0.40+Math.random()*0.15, seventhMel, true);
+      pat[landingStep] = mk('melody', 0.95, rootMel, false, resolvedDecay);
+      // Occasional high root echo
+      if (Math.random() < 0.35 && landingStep+3 < STEPS)
+        pat[landingStep+3] = mk('melody', 0.30, mel(7), true);
+      break;
+    }
+
+    case 'RHYTHMIC': {
+      // Syncopated approach — positions vary so anticipation doesn't always land same place
+      const a1 = 1 + jit();
+      const a2 = 3 + jit() + jit();
+      const a3 = Math.max(a2+1, landingStep - 2 - jit());
+      const ant = landingStep - 1;
+      if (a1 < STEPS) pat[a1] = mk('melody', 0.30+Math.random()*0.15, fifthMel,  true);
+      if (a2 < STEPS) pat[a2] = mk('melody', 0.50+Math.random()*0.15, thirdMel,  false);
+      if (a3 < STEPS && a3 !== ant) pat[a3] = mk('melody', 0.42+Math.random()*0.15, secondMel, true);
+      if (ant < STEPS && ant !== landingStep) pat[ant] = mk('melody', 0.75, rootMel, false);
+      pat[landingStep] = mk('melody', 0.95, rootMel, false, resolvedDecay);
+      break;
+    }
+
+    case 'UNISON': {
+      // Sparse — one approach note, then unison drop
+      const approachChoices = [secondMel, thirdMel, fifthMel, sixthMel, seventhMel];
+      const approachFreq = approachChoices[Math.floor(Math.random()*approachChoices.length)];
+      const approachStep = Math.max(2, landingStep - 3 - jit() - jit());
+      if (approachStep < STEPS) pat[approachStep] = mk('melody', 0.55+Math.random()*0.15, approachFreq);
+      // Occasionally add a second colour note before approach
+      if (Math.random() < 0.45 && approachStep > 3)
+        pat[approachStep-2] = mk('melody', 0.35, fifthMel, true);
+      pat[landingStep] = mk('melody', 0.95, rootMel, false, resolvedDecay);
+      // Bass mirrors exactly for unison effect (overwrite bass landing)
+      pat[landingStep] = mk('melody', 0.95, rootMel, false, resolvedDecay);
+      break;
+    }
+
+    case 'CASCADE': {
+      // Rapid descending run — start point varies
+      const runStart = Math.max(2, landingStep - 4 - jit());
+      const runNotes = [fifthMel, fourthMel, thirdMel, secondMel];
+      // Sometimes ascending then descending for variety
+      const ascending = Math.random() < 0.30;
+      const orderedNotes = ascending
+        ? [secondMel, thirdMel, fourthMel, fifthMel]
+        : runNotes;
+      orderedNotes.forEach((freq, i) => {
+        const s = runStart + i;
+        if (s < landingStep) pat[s] = mk('melody', 0.42+i*0.10, freq, false);
+      });
+      // Extra ghost at start of run for pickup feel
+      if (Math.random() < 0.5 && runStart > 1)
+        pat[runStart-1] = mk('melody', 0.25, sixthMel, true);
+      pat[landingStep] = mk('melody', 0.98, rootMel, false, resolvedDecay);
+      break;
+    }
+  }
+
+  return pat;
+}
+
+function randomPattern(probs) {
+  // probs: { kickProbs[16], bassProbs[16], snareProbs[16], melodyProbs[16] }
+  // All share a single oscillator — a step can only be ONE voice
+  // Priority: kick > snare > bass > melody > rest
+  const bassPool = buildFreqPool(rootHz, scaleIntervals, 1);  // octave 1
+  const melPool  = buildFreqPool(rootHz, scaleIntervals, 3);  // octave 3
+
+  const pat = [];
+  for (let i = 0; i < STEPS; i++) {
+    const kp = probs.kick[i], sp = probs.snare[i], bp = probs.bass[i], mp = probs.melody[i];
+
+    // Roll for each voice in priority order
+    let role = 'rest';
+    let vel = 0.6 + Math.random() * 0.4;
+    let freq = rootHz;
+    let isGhost = false;
+
+    // Ghost probability: some hits are quieter
+    if (Math.random() < 0.22) { isGhost = true; vel *= 0.25; }
+
+    if (Math.random() < kp) {
+      role = 'kick'; vel = isGhost ? vel : (0.75 + Math.random() * 0.25);
+    } else if (Math.random() < sp) {
+      role = 'snare';
+    } else if (Math.random() < bp) {
+      role = 'bass';
+      freq = bassPool[Math.floor(Math.random() * Math.min(6, bassPool.length))];
+    } else if (Math.random() < mp) {
+      role = 'melody';
+      freq = melPool[Math.floor(Math.random() * melPool.length)];
+    }
+
+    pat.push({ role, vel, freq, isGhost });
+  }
+
+  // Always force kick on step 0 (downbeat anchor)
+  pat[0] = { role: 'kick', vel: 0.95, freq: rootHz, isGhost: false };
+
+  return pat;
+}
+
+// Default probability template — IDM/downtempo flavour
+function defaultProbs() {
+  // Step probabilities — each is 0..1
+  const kick  = [1.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.65, 0.0, 0.0, 0.15, 0.0, 0.0, 0.45, 0.0, 0.0, 0.2];
+  const snare = [0.0, 0.0, 0.0, 0.0, 0.75, 0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.6, 0.0, 0.0, 0.35, 0.0];
+  const bass  = [0.0, 0.5, 0.3, 0.4, 0.0, 0.55, 0.0, 0.45, 0.4, 0.0, 0.5, 0.0, 0.0, 0.55, 0.4, 0.3];
+  const melody= [0.0, 0.0, 0.3, 0.0, 0.0, 0.2, 0.0, 0.0, 0.25, 0.0, 0.0, 0.0, 0.2, 0.0, 0.0, 0.35];
+  return { kick, snare, bass, melody };
+}
+
+// MUTATE — randomize probabilities
+function mutateProbs() {
+  const kick  = new Array(STEPS).fill(0);
+  const snare = new Array(STEPS).fill(0);
+  const bass  = new Array(STEPS).fill(0);
+  const melody= new Array(STEPS).fill(0);
+
+  // Kick: beat-oriented but with IDM weirdness
+  // Always strong on 0, some probability elsewhere
+  const kickGrid = [0, 4, 8, 12]; // typical grid
+  for (let i = 0; i < STEPS; i++) {
+    if (i === 0) { kick[i] = 1.0; continue; }
+    const isGrid = kickGrid.includes(i);
+    // IDM: sometimes kick is off-grid, sometimes missing on grid
+    kick[i] = isGrid
+      ? (Math.random() < 0.7 ? 0.6 + Math.random() * 0.4 : Math.random() * 0.3)
+      : Math.random() < 0.25 ? Math.random() * 0.65 : 0;
+  }
+
+  // Snare: typical backbeat but can be polyrhythmic
+  const snareBeats = [4, 12]; // bars 2 and 4
+  for (let i = 0; i < STEPS; i++) {
+    if (snareBeats.includes(i)) {
+      snare[i] = 0.6 + Math.random() * 0.4;
+    } else {
+      // Spicy off-beat snares
+      snare[i] = Math.random() < 0.28 ? Math.random() * 0.7 : 0;
+    }
+  }
+
+  // Bass: dense, syncopated — IDM bass loves the spaces between kicks
+  for (let i = 0; i < STEPS; i++) {
+    const haKick = kick[i] > 0.5;
+    const hasSnare = snare[i] > 0.5;
+    if (haKick || hasSnare) {
+      bass[i] = Math.random() * 0.25; // can still play with drums, but quieter
+    } else {
+      bass[i] = Math.random() < 0.55 ? 0.3 + Math.random() * 0.65 : 0;
+    }
+  }
+
+  // Melody: sparse, surprising — IDM melody is often a single note event
+  for (let i = 0; i < STEPS; i++) {
+    melody[i] = Math.random() < 0.18 ? 0.25 + Math.random() * 0.6 : 0;
+  }
+
+  // Modulate key/scale — uses family-aware, interval-based modulation
+  // Higher probability than before (0.75) so mutations feel more harmonically varied
+  if (Math.random() < 0.75) modulateKey();
+  else updateHarmonicState(); // ensure harmonic state is always fresh
+  pickResolveStyle();     // lock in this mutation's resolution personality
+
+  return { kick, snare, bass, melody };
+}
+
+let currentProbs = null;
+
+function regeneratePattern(probs) {
+  currentProbs = probs;
+  pattern = randomPattern(probs);
+  buildSequencerUI(probs);
+}
+
+
+// ════════════════════════════════════════════════════════
+// VOICE 2 MORPH FUNCTIONS
+// V2 fires in sync with V1's rhythm but makes independent
+// sonic decisions — creating sounds impossible with one osc.
+// ════════════════════════════════════════════════════════
+
+function v2MorphKick(t, vel) {
+  if (!voice2Active) return;
+  const maxW = STEP_DUR * Math.max(0.9, morphSpeed2);
+  const decay = Math.min(0.35 + Math.random()*0.20 + morphSpeed2*0.28, maxW*0.96);
+  const compVel = vel * loudnessComp(kickRootHz) * 0.80;
+
+  // V2 kick: slightly detuned (flat) sine — beats against V1's sine
+  // The beating frequency = detune amount, creates sub-tremolo
+  const detuneCents = 5 + Math.random() * 12; // 5-17 cents flat
+  const detuneRatio = Math.pow(2, -detuneCents/1200);
+  const baseFreq = kickRootHz * detuneRatio;
+
+  osc2Node.frequency.cancelScheduledValues(t);
+  osc2Node.frequency.linearRampToValueAtTime(kickStartHz * detuneRatio, t + 0.004);
+  osc2Node.frequency.exponentialRampToValueAtTime(baseFreq, t + 0.012);
+  osc2Node.frequency.exponentialRampToValueAtTime(Math.max(18, baseFreq*0.48), t + decay*0.78);
+
+  osc2Gain.gain.cancelScheduledValues(t);
+  osc2Gain.gain.setTargetAtTime(0.0001, t, 0.002);
+  osc2Gain.gain.linearRampToValueAtTime(compVel * 1.1, t + 0.007);
+  osc2Gain.gain.exponentialRampToValueAtTime(compVel * 0.4, t + decay*0.22);
+  osc2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  noise2Gain.gain.cancelScheduledValues(t);
+  noise2Gain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noise2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  filter2Node.frequency.cancelScheduledValues(t);
+  filter2Node.frequency.setValueAtTime(200, t);
+  filter2Node.frequency.exponentialRampToValueAtTime(60, t + decay*0.55);
+  filter2Node.Q.setValueAtTime(0.7, t);
+}
+
+function v2MorphBass(t, vel, freq, isGhost) {
+  if (!voice2Active) return;
+  const maxW = STEP_DUR * Math.max(0.9, morphSpeed2);
+  const decay = Math.min(0.38 + Math.random()*0.22 + morphSpeed2*0.38, maxW*0.96);
+  const compVel = vel * loudnessComp(Math.max(20, freq)) * 0.78;
+
+  // V2 bass: sawtooth detuned +12-18 cents above V1
+  // Creates the classic dual-saw supersaw growl — impossible with one osc
+  const detuneCents = 12 + Math.random() * 8;
+  const detuneRatio = Math.pow(2, detuneCents/1200);
+  const detunedFreq = freq * detuneRatio;
+
+  osc2Node.frequency.cancelScheduledValues(t);
+  osc2Node.frequency.linearRampToValueAtTime(detunedFreq * 1.015, t + 0.005);
+  osc2Node.frequency.exponentialRampToValueAtTime(detunedFreq, t + 0.015);
+
+  const baseVol = isGhost ? compVel*0.20 : compVel*0.90;
+  osc2Gain.gain.cancelScheduledValues(t);
+  osc2Gain.gain.setTargetAtTime(0.0001, t, 0.003);
+  osc2Gain.gain.linearRampToValueAtTime(baseVol, t + 0.012);
+  osc2Gain.gain.setTargetAtTime(baseVol*0.60, t + 0.05, 0.07);
+  osc2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  // Faint noise — breathiness layer
+  const noiseAmt = 0.025 + Math.random()*0.035;
+  noise2Gain.gain.cancelScheduledValues(t);
+  noise2Gain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noise2Gain.gain.linearRampToValueAtTime(noiseAmt*baseVol, t + 0.014);
+  noise2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay*0.38);
+
+  // V2 filter sweeps OPPOSITE to V1 — one opens as other closes
+  // This creates a stereo chorus-like movement in mono
+  const filtPeak = 180 + freq*2.5 + Math.random()*80;
+  const filtOpenTime = Math.max(0.01, decay*(0.55 - morphSpeed2*0.15));
+  filter2Node.frequency.cancelScheduledValues(t);
+  filter2Node.Q.cancelScheduledValues(t);
+  filter2Node.frequency.setValueAtTime(Math.min(3000, filtPeak), t); // starts OPEN
+  filter2Node.frequency.exponentialRampToValueAtTime(Math.max(60, freq*0.85), t + filtOpenTime);
+  filter2Node.Q.setValueAtTime(1.8 + Math.random()*0.8, t);
+  filter2Node.Q.exponentialRampToValueAtTime(0.6, t + decay*0.5);
+}
+
+function v2MorphSnare(t, vel, isGhost) {
+  if (!voice2Active) return;
+  const maxW = STEP_DUR * Math.max(0.9, morphSpeed2);
+  const decay = Math.min(0.08 + Math.random()*0.06 + morphSpeed2*0.45, maxW*0.90);
+  const compVel = vel * loudnessComp(snareBodyHz) * 0.75;
+
+  // V2 snare: pitched ring at the 5th above snare body — adds harmonic body
+  // Real snare drums resonate at multiple pitches; this fakes that
+  const ringFreq = snareBodyHz * 1.5 + Math.random()*snareBodyHz*0.1;
+  const detune = 1 + (Math.random()-0.5)*0.06;
+
+  osc2Node.frequency.cancelScheduledValues(t);
+  osc2Node.frequency.linearRampToValueAtTime(ringFreq * detune * 1.8, t + 0.003);
+  osc2Node.frequency.exponentialRampToValueAtTime(ringFreq * detune, t + 0.010);
+  osc2Node.frequency.exponentialRampToValueAtTime(ringFreq * detune * 0.5, t + decay);
+
+  const bodyVol = isGhost ? compVel*0.10 : compVel*0.45;
+  osc2Gain.gain.cancelScheduledValues(t);
+  osc2Gain.gain.setTargetAtTime(0.0001, t, 0.002);
+  osc2Gain.gain.linearRampToValueAtTime(bodyVol, t + 0.004);
+  osc2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay*0.65);
+
+  // V2 snare noise: filtered differently from V1 — narrower band
+  const noiseVol = isGhost ? compVel*0.18 : compVel*0.75;
+  noise2Gain.gain.cancelScheduledValues(t);
+  noise2Gain.gain.setTargetAtTime(0.0001, t, 0.002);
+  noise2Gain.gain.linearRampToValueAtTime(noiseVol, t + 0.004);
+  noise2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay*0.55);
+
+  // Narrower highpass than V1 — adds presence without duplicating
+  filter2Node.frequency.cancelScheduledValues(t);
+  filter2Node.Q.cancelScheduledValues(t);
+  filter2Node.frequency.setValueAtTime(1800 + Math.random()*800, t);
+  filter2Node.frequency.exponentialRampToValueAtTime(900, t + decay*0.4);
+  filter2Node.Q.setValueAtTime(1.2, t);
+}
+
+function v2MorphMelody(t, vel, freq, isGhost, resolveDecay) {
+  if (!voice2Active) return;
+  const maxW = STEP_DUR * Math.max(0.9, morphSpeed2);
+  const decay = resolveDecay > 0
+    ? resolveDecay
+    : Math.min(0.22 + Math.random()*0.28 + morphSpeed2*0.55, maxW*0.96);
+  const compVel = vel * loudnessComp(Math.max(80, freq)) * 0.72;
+
+  // V2 melody: harmony interval — randomly picks 3rd or 5th from scale
+  // Creates true two-voice harmony from a single sequencer
+  const melPool2 = buildFreqPool(rootHz, scaleIntervals, 3);
+  const harmonyOptions = [
+    melPool2[Math.min(2, melPool2.length-1)], // major/minor 3rd
+    melPool2[Math.min(4, melPool2.length-1)], // perfect 5th
+    melPool2[Math.min(1, melPool2.length-1)], // 2nd — adds tension
+    freq * 0.5,                                // octave below — depth
+  ];
+  const harmWeights = [0.38, 0.32, 0.15, 0.15];
+  let harmFreq = harmonyOptions[0];
+  { let acc=0; const r=Math.random();
+    for (let i=0;i<harmonyOptions.length;i++) { acc+=harmWeights[i]; if(r<acc){harmFreq=harmonyOptions[i];break;} } }
+
+  osc2Node.frequency.cancelScheduledValues(t);
+  osc2Node.frequency.linearRampToValueAtTime(harmFreq * 1.008, t + 0.006);
+  osc2Node.frequency.exponentialRampToValueAtTime(harmFreq, t + 0.018);
+
+  // Vibrato at slightly different rate than V1 — creates natural chorus
+  const vibDepth = harmFreq * (0.003 + morphSpeed2*0.006);
+  const vibRate  = 3.5 + morphSpeed2*2.5;
+  const vibSteps = Math.floor(decay * vibRate * 2);
+  for (let v=0; v<vibSteps; v++) {
+    const vt = t + 0.03 + v/(vibRate*2);
+    if (vt < t + decay) osc2Node.frequency.setValueAtTime(harmFreq + Math.sin(v*Math.PI)*vibDepth, vt);
+  }
+
+  const baseVol = isGhost ? compVel*0.12 : compVel*0.60;
+  osc2Gain.gain.cancelScheduledValues(t);
+  osc2Gain.gain.setTargetAtTime(0.0001, t, 0.003);
+  osc2Gain.gain.linearRampToValueAtTime(baseVol, t + 0.016);
+  osc2Gain.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+
+  noise2Gain.gain.cancelScheduledValues(t);
+  noise2Gain.gain.setTargetAtTime(0.0001, t, 0.003);
+  noise2Gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.018);
+
+  filter2Node.frequency.cancelScheduledValues(t);
+  filter2Node.Q.cancelScheduledValues(t);
+  const filtFreq2 = harmFreq * 2.8 + Math.random()*harmFreq;
+  filter2Node.frequency.setValueAtTime(150, t);
+  filter2Node.frequency.exponentialRampToValueAtTime(Math.min(5000, filtFreq2), t + 0.025);
+  filter2Node.frequency.exponentialRampToValueAtTime(harmFreq*1.8, t + decay*0.65);
+  filter2Node.Q.setValueAtTime(1.5 + Math.random()*0.8, t);
+  filter2Node.Q.exponentialRampToValueAtTime(0.8, t + decay*0.45);
+}
+
+
+// ════════════════════════════════════════════════════════
+// REPEAT ENGINE
+// Fires in the same schedule() lookahead loop.
+// Uses its own time pointer so it stays locked to the same
+// audio clock as the main sequencer — releasing the button
+// leaves no gap or drift.
+// ════════════════════════════════════════════════════════
+
+function scheduleRepeat() {
+  if (!repeatDiv || !lastNote || !isPlaying) return;
+  const stepDurRepeat = (60 / BPM) / (repeatDiv / 4); // subdivision duration in seconds
+
+  while (repeatNextTime < actx.currentTime + LOOKAHEAD) {
+    const t = repeatNextTime;
+    const n = lastNote;
+    // Fire the last note at repeat interval with slightly softer velocity
+    const vel = n.vel * 0.88;
+    switch (n.role) {
+      case 'kick':   morphToKick(t, vel, 0); break;
+      case 'bass':   morphToBass(t, vel, n.freq, n.isGhost, 0); break;
+      case 'snare':  morphToSnare(t, vel, n.isGhost); break;
+      case 'melody': morphToMelody(t, vel, n.freq, n.isGhost, 0); break;
+    }
+    repeatNextTime += stepDurRepeat;
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// SCHEDULER
+// ════════════════════════════════════════════════════════
+
+function scheduleStep(step, t) {
+  // Apply pending mutation on next step — immediate, never breaks timing
+  if (pendingMutation) {
+    regeneratePattern(pendingMutation);
+    pendingMutation = null;
+  }
+
+  if (step === 0) {
+    // Always increment — resolve bar counts in the cycle
+    barCount++;
+    if (resolveBarTarget > 0) {
+      if (resolveActive) {
+        // Resolve bar just played — return to normal on this boundary
+        resolveActive  = false;
+        resolvePattern = null;
+        const delay = Math.max(0, (t - actx.currentTime) * 1000);
+        setTimeout(() => {
+          const rf = document.getElementById('resolve-flash');
+          if (rf) { rf.classList.add('bang'); setTimeout(() => rf.classList.remove('bang'), 200); }
+          buildSequencerUI(null, pattern);
+        }, delay);
+      }
+      // Every Nth bar (including the resolve bar itself in the count) fire resolve
+      if (barCount % resolveBarTarget === 0) {
+        resolveActive  = true;
+        resolvePattern = buildResolvePattern();
+        const delay = Math.max(0, (t - actx.currentTime) * 1000);
+        setTimeout(() => {
+          const rf = document.getElementById('resolve-flash');
+          if (rf) { rf.classList.add('bang'); setTimeout(() => rf.classList.remove('bang'), 200); }
+          buildSequencerUI(null, resolvePattern);
+        }, delay);
+      }
+    } else if (resolveActive) {
+      // Target turned off mid-resolve — clean up
+      resolveActive  = false;
+      resolvePattern = null;
+      buildSequencerUI(null, pattern);
+    }
+  }
+
+  // Use resolve pattern during resolution bar, otherwise normal pattern
+  const activePattern = (resolveActive && resolvePattern) ? resolvePattern : pattern;
+  const ev = activePattern[step];
+  if (!ev || ev.role === 'rest') return;
+
+  // Every note fires — deClick compressor handles any transient artifacts
+  switch (ev.role) {
+    case 'kick':
+      morphToKick(t, ev.vel, step);
+      v2MorphKick(t, ev.vel);
+      break;
+    case 'bass':
+      morphToBass(t, ev.vel, ev.freq, ev.isGhost, ev.resolveDecay||0);
+      v2MorphBass(t, ev.vel, ev.freq, ev.isGhost);
+      break;
+    case 'snare':
+      morphToSnare(t, ev.vel, ev.isGhost);
+      v2MorphSnare(t, ev.vel, ev.isGhost);
+      break;
+    case 'melody':
+      morphToMelody(t, ev.vel, ev.freq, ev.isGhost, ev.resolveDecay||0);
+      v2MorphMelody(t, ev.vel, ev.freq, ev.isGhost, ev.resolveDecay||0);
+      break;
+  }
+}
+
+function schedule() {
+  if (!isPlaying) return;
+  while (nextNoteTime < actx.currentTime + LOOKAHEAD) {
+    scheduleStep(currentStep, nextNoteTime);
+    updateStepUI(currentStep, nextNoteTime);
+    currentStep = (currentStep + 1) % STEPS;
+    nextNoteTime += STEP_DUR;
+  }
+  scheduleRepeat();
+  schedTimer = setTimeout(schedule, SCHED_INT);
+}
+
+function startPlay() {
+  if (actx.state === 'suspended') actx.resume();
+  isPlaying = true;
+  currentStep = 0;
+  nextNoteTime = actx.currentTime + 0.05;
+  schedule();
+}
+
+// ════════════════════════════════════════════════════════
+// DISPLAY UPDATES — scheduled to match audio
+// ════════════════════════════════════════════════════════
+
+const ROLE_COLORS = {
+  kick:   '#e8ff00',
+  bass:   '#00ffcc',
+  snare:  '#ff3c6e',
+  melody: '#c8c8e0',
+  rest:   '#1a1a2e',
+};
+
+function scheduleDisplayUpdate(audioTime, role, freq, waveMix, filtFreq, noise) {
+  const delay = Math.max(0, (audioTime - actx.currentTime) * 1000);
+  setTimeout(() => {
+    displayState = { role, freq, waveMix, noiseAmt: noise };
+    updateParamDisplay();
+    updateStatePill(role);
+    scopeColor = ROLE_COLORS[role];
+  }, delay);
+}
+
+function updateParamDisplay() {
+  const { freq, waveMix, noiseAmt } = displayState;
+  const freqStr = freq < 100 ? freq.toFixed(1) : Math.round(freq).toString();
+
+  el('pv-freq').textContent  = freqStr;
+  el('pv-wave').textContent  = Math.round(waveMix * 100) + '%';
+  el('pv-noise').textContent = Math.round(noiseAmt) + '%';
+
+  const col = ROLE_COLORS[displayState.role];
+  el('pb-freq').style.width      = clamp(freq / 400, 0, 1) * 100 + '%';
+  el('pb-freq').style.background = col;
+  el('pb-wave').style.width      = (waveMix * 100) + '%';
+  el('pb-wave').style.background = col;
+  el('pb-noise').style.width     = clamp(noiseAmt, 0, 100) + '%';
+  el('pb-noise').style.background = col;
+}
+
+function updateStatePill(role) {
+  const pill = el('state-pill');
+  const col = ROLE_COLORS[role];
+  pill.textContent = role.toUpperCase();
+  pill.style.color = col;
+  pill.style.borderColor = col;
+  pill.style.textShadow = `0 0 12px ${col}`;
+}
+
+// ── STEP UI tracking
+let stepTimeouts = [];
+function updateStepUI(step, audioTime) {
+  const delay = Math.max(0, (audioTime - actx.currentTime) * 1000);
+  const t = setTimeout(() => {
+    // Highlight current step cursor
+    document.querySelectorAll('.step-cursor').forEach((c, i) => {
+      c.classList.toggle('active', i === step);
+    });
+  }, delay);
+  stepTimeouts.push(t);
+  if (stepTimeouts.length > 100) { clearTimeout(stepTimeouts.shift()); }
+}
+
+// ════════════════════════════════════════════════════════
+// SEQUENCER UI
+// ════════════════════════════════════════════════════════
+
+function buildSequencerUI(probs, pat) {
+  const wrap = document.getElementById('seq-wrap');
+  wrap.innerHTML = '';
+  const displayPat = pat || pattern;
+
+  for (let i = 0; i < STEPS; i++) {
+    const ev = displayPat[i];
+    const col = ev ? ROLE_COLORS[ev.role] : ROLE_COLORS.rest;
+    const h = ev && ev.role !== 'rest'
+      ? Math.round(6 + (ev.isGhost ? 4 : ev.vel) * 22)
+      : 4;
+
+    const col_div = document.createElement('div');
+    col_div.className = 'step-col';
+    col_div.innerHTML = `
+      <div class="step-event" style="height:${h}px;background:${col};opacity:${ev && ev.role !== 'rest' ? (ev.isGhost ? 0.35 : 0.75) : 0.15}"></div>
+      <div class="step-cursor ${i === 0 ? 'active' : ''}"></div>
+    `;
+    wrap.appendChild(col_div);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+// OSCILLOSCOPE
+// ════════════════════════════════════════════════════════
+
+function resizeScope() {
+  scopeCanvas = document.getElementById('scope');
+  scopeCtx = scopeCanvas.getContext('2d');
+  scopeW = scopeCanvas.offsetWidth;
+  scopeH = scopeCanvas.offsetHeight;
+  scopeCanvas.width = scopeW;
+  scopeCanvas.height = scopeH;
+}
+
+function drawScope() {
+  requestAnimationFrame(drawScope);
+  if (!analyser || !scopeCtx) return;
+
+  analyser.getFloatTimeDomainData(scopeData);
+
+  // Phosphor persistence — slow fade
+  scopeCtx.fillStyle = 'rgba(6, 6, 12, 0.28)';
+  scopeCtx.fillRect(0, 0, scopeW, scopeH);
+
+  // Find zero crossing for stable display
+  let start = 0;
+  for (let i = 1; i < scopeData.length - 1; i++) {
+    if (scopeData[i] < 0 && scopeData[i + 1] >= 0) { start = i; break; }
+  }
+
+  const sliceW = scopeW / 512;
+  scopeCtx.beginPath();
+  for (let i = 0; i < 512 && start + i < scopeData.length; i++) {
+    const v = scopeData[start + i];
+    const x = i * sliceW;
+    const y = (1 - (v + 1) / 2) * scopeH;
+    i === 0 ? scopeCtx.moveTo(x, y) : scopeCtx.lineTo(x, y);
+  }
+
+  // Glow effect — two passes
+  scopeCtx.strokeStyle = scopeColor + '40';
+  scopeCtx.lineWidth = 5;
+  scopeCtx.stroke();
+  scopeCtx.strokeStyle = scopeColor + 'cc';
+  scopeCtx.lineWidth = 1.5;
+  scopeCtx.stroke();
+
+  // Grid lines
+  scopeCtx.strokeStyle = 'rgba(26, 26, 46, 0.6)';
+  scopeCtx.lineWidth = 1;
+  scopeCtx.beginPath();
+  scopeCtx.moveTo(0, scopeH / 2);
+  scopeCtx.lineTo(scopeW, scopeH / 2);
+  scopeCtx.stroke();
+}
+
+// ════════════════════════════════════════════════════════
+// UTILITY
+// ════════════════════════════════════════════════════════
+
+function el(id) { return document.getElementById(id); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════
+
+// BPM selector
+document.querySelectorAll('.bpm-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.bpm-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+document.getElementById('bpm-default').classList.add('active');
+
+el('init-btn').addEventListener('click', () => {
+  const activeBtn = document.querySelector('.bpm-btn.active');
+  if (activeBtn) BPM = parseInt(activeBtn.dataset.bpm, 10);
+  STEP_DUR = 60 / (BPM * 4);
+  initAudio();
+
+  el('init').style.display = 'none';
+  el('main').style.display = 'flex';
+
+  resizeScope();
+  window.addEventListener('resize', resizeScope);
+
+  // Generate initial pattern
+  pickStartingKey();    // random ME/Arabic start every session
+  pickResolveStyle();
+  regeneratePattern(defaultProbs());
+
+  el('bpm-badge').textContent = BPM + ' BPM';
+
+  el('bpm-badge').textContent = BPM + ' BPM';
+
+  // Morph slider
+  const slider = el('morph-slider');
+  const morphValEl = el('morph-val');
+  function sliderToMorphSpeed(v) {
+    if (v <= 33)  return v / 33;
+    if (v <= 66)  return 1.0 + ((v - 33) / 33) * 3.0;
+    return 4.0 + ((v - 66) / 34) * 8.0;
+  }
+  function updateMorphLabel(v) {
+    if (v < 12)       morphValEl.textContent = 'SNAP';
+    else if (v < 33)  morphValEl.textContent = 'FAST';
+    else if (v < 55)  morphValEl.textContent = 'MED';
+    else if (v < 75)  morphValEl.textContent = 'SLOW';
+    else if (v < 90)  morphValEl.textContent = 'DRIFT';
+    else              morphValEl.textContent = 'GLACL';
+  }
+  slider.addEventListener('input', () => {
+    morphSpeed = sliderToMorphSpeed(parseInt(slider.value, 10));
+    updateMorphLabel(parseInt(slider.value, 10));
+  });
+  updateMorphLabel(parseInt(slider.value, 10));
+
+  // Resolve buttons — deterministic: fires exactly every N bars
+  // Clicking active button turns off resolution entirely
+  resolveBarTarget = 4;
+  barsSinceResolve = 0;
+  el('resolve-4').classList.add('active');
+
+  function setResolveBtn(bars) {
+    document.querySelectorAll('.resolve-btn').forEach(b => b.classList.remove('active'));
+    if (resolveBarTarget === bars) {
+      // Toggle off
+      resolveBarTarget = 0;
+      barsSinceResolve = 0;
+    } else {
+      resolveBarTarget = bars;
+      barsSinceResolve = 0;  // reset counter on change so next resolve is N bars away
+      el('resolve-' + bars).classList.add('active');
+    }
+  }
+
+  el('resolve-4').addEventListener('click', () => setResolveBtn(4));
+  el('resolve-2').addEventListener('click', () => setResolveBtn(2));
+
+  // Voice 2 toggle
+  const v2btn = el('voice2-toggle');
+  v2btn.addEventListener('click', () => {
+    voice2Active = !voice2Active;
+    v2btn.textContent = 'WAVE 2';
+    v2btn.classList.toggle('active', voice2Active);
+    // Silence V2 immediately when toggled off
+    if (!voice2Active && osc2Gain) {
+      osc2Gain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.015);
+      noise2Gain.gain.setTargetAtTime(0.0001, actx.currentTime, 0.015);
+    }
+  });
+
+  // Voice 2 morph speed slider
+  const slider2    = el('morph2-slider');
+  const morph2ValEl = el('morph2-val');
+  slider2.addEventListener('input', () => {
+    const v = parseInt(slider2.value, 10);
+    morphSpeed2 = v <= 33 ? v/33 : v <= 66 ? 1.0+((v-33)/33)*3.0 : 4.0+((v-66)/34)*8.0;
+    if (v < 12)      morph2ValEl.textContent = 'SNAP';
+    else if (v < 33) morph2ValEl.textContent = 'FAST';
+    else if (v < 55) morph2ValEl.textContent = 'MED';
+    else if (v < 75) morph2ValEl.textContent = 'SLOW';
+    else if (v < 90) morph2ValEl.textContent = 'DRIFT';
+    else             morph2ValEl.textContent = 'GLACL';
+  });
+
+  startPlay();
+  drawScope();
+
+  // Mutate button — queues mutation to fire exactly on next bar line
+  // No setTimeout drift: the scheduler itself applies it at step 0
+  el('mutate-btn').addEventListener('click', () => {
+    el('mutate-btn').classList.add('flash');
+    setTimeout(() => el('mutate-btn').classList.remove('flash'), 300);
+    // Generate new probs now (so scale/style are chosen immediately)
+    // but defer pattern application to next step 0 for rhythmic cleanliness
+    pendingMutation = mutateProbs();
+  });
+});
+</script>
+</body>
+</html>
