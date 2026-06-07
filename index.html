@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>OXIDAISY</title>
+<title>MORPHSYNTH — ONE VOICE</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=VT323&family=Syne+Mono&display=swap');
 
@@ -798,7 +798,7 @@ let resolvePattern    = null;  // the locked-to-root pattern for that bar
 // barsSinceResolve counts up; when it hits target, resolve fires exactly.
 const RESOLVE_STYLES = ['STEPWISE', 'LEADING', 'RHYTHMIC', 'UNISON', 'CASCADE'];
 let resolveStyle   = 'STEPWISE';
-let resolveWeights = [0.30, 0.20, 0.20, 0.20, 0.10]; // probabilities per style
+let resolveWeights = [0.20, 0.20, 0.20, 0.20, 0.20]; // equal starting weights
 
 // ── PICK STARTING KEY — random ME/Arabic on every boot
 function pickStartingKey() {
@@ -886,7 +886,7 @@ function modulateKey() {
 
 function pickResolveStyle() {
   // Drift weights slightly each mutation — personality slowly evolves
-  resolveWeights = resolveWeights.map(w => Math.max(0.05, Math.min(0.70, w + (Math.random()-0.5)*0.08)));
+  resolveWeights = resolveWeights.map(w => Math.max(0.05, Math.min(0.60, w + (Math.random()-0.5)*0.14)));
   // Normalise
   const sum = resolveWeights.reduce((a,b) => a+b, 0);
   resolveWeights = resolveWeights.map(w => w/sum);
